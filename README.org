@@ -1,1 +1,80 @@
 #+TITLE: n-gram-chess
+#+AUTHOR: Elliot Penson
+#+OPTIONS: num:nil
+
+A chess engine powered by an n-gram model. Inspired by [[https://news.ycombinator.com/item?id=8945231][this post]] on
+Hacker News. The project depends on my chess library [[https://github.com/ElliotPenson/knight-owl][knight-owl]].
+
+The n-gram level may be specified by the user. The model is trained on
+a set of chess games in portable game notation (PGN). Such a
+collection exists in the corpus directory. These files are taken from
+the [[http://www.pgnmentor.com/files.html#players][PGN Mentor Database]]. During training, the engine establishes a
+frequency map. Various functions use this map to find conditional
+probabilities of chess moves (i.e. the likelihood of a move given n-1
+previous ones).
+
+** Usage
+
+   First, train the model. The ~train~ function begins by searching
+   the corpus directory for PGN files. The function evaluates to a
+   ~hash-table~ of n-gram counts from the moves of these games. This
+   table needs to be stored for future use:
+
+   #+BEGIN_SRC lisp
+     (defparameter *count-map* (train 3))
+   #+END_SRC
+
+   The required parameter (in this case ~3~) indicates the n of the
+   model. 2 would be a bigram model, 3 trigram, and so on.
+
+   The quality (or /probability/) of a move can now be
+   tested. ~move-probability~ takes a move in algebraic chess
+   notation, a list of previous moves, and the n-gram count map. For
+   example:
+
+   #+BEGIN_SRC lisp
+     (move-probability "Nc6" '("e5" "Nf3") *count-map*)
+     -> 0.5555556
+   #+END_SRC
+
+   The model also has the ability to select the best move given a
+   chess board's state. Let's begin by setting up a board.
+
+   #+BEGIN_SRC lisp
+     (defparameter *test-board* (new-board))
+   #+END_SRC
+   
+   Now let's do some moves.
+
+   #+BEGIN_SRC lisp
+     (loop for move in '("e4" "e5" "Nf3" "Nc6" "Bb5")
+           for whitep = t then (not whitep)
+           do (make-move move *test-board* whitep))
+     (print-board *test-board*)
+     -> 8 |♜||_||♝||♛||♚||♝||♞||♜|
+        7 |♟||♟||♟||♟||_||♟||♟||♟|
+        6 |_||_||♞||_||_||_||_||_|
+        5 |_||♗||_||_||♟||_||_||_|
+        4 |_||_||_||_||♙||_||_||_|
+        3 |_||_||_||_||_||♘||_||_|
+        2 |♙||♙||♙||♙||_||♙||♙||♙|
+        1 |♖||♘||♗||♕||♔||_||_||♖|
+           A  B  C  D  E  F  G  H
+   #+END_SRC
+
+   Looking good! Now for the most likely move. The ~best-move~
+   function accepts a board (like *test-board*), if the player is
+   white or black, a list of previous moves, and the n-gram count
+   map.
+
+   #+BEGIN_SRC lisp
+     (best-move *test-board* nil '("Nc6" "Bb5") *count-map*)
+     -> "a6"
+        0.45833334
+   #+END_SRC
+   
+   We receive the most probable move and it's associated
+   probability. Note that we only handed ~best-move~ the last two
+   moves. This is because we are working with a trigram model.
+
+** TODO Future Improvements
